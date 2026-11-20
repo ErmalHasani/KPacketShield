@@ -273,23 +273,32 @@ static bool ensure_admin_or_elevate(int argc, char *argv[]) {
     GetModuleFileNameA(NULL, exe_path, sizeof(exe_path));
 
     char params[1024] = {0};
+    bool is_hidden = false;
     for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--hidden") == 0 || strcmp(argv[i], "-H") == 0 || strcmp(argv[i], "--daemon") == 0) {
+            is_hidden = true;
+        }
         strcat(params, "\"");
         strcat(params, argv[i]);
         strcat(params, "\"");
         if (i < argc - 1) strcat(params, " ");
     }
 
-    printf("\n====================================================================\n");
-    printf(" [!] ELEVATION REQUIRED: Attempting to launch as Administrator...\n");
-    printf("     Please click 'Yes' on the Windows UAC elevation prompt.\n");
-    printf("====================================================================\n\n");
+    if (is_hidden) {
+        HWND hWnd = GetConsoleWindow();
+        if (hWnd) ShowWindow(hWnd, SW_HIDE);
+    } else {
+        printf("\n====================================================================\n");
+        printf(" [!] ELEVATION REQUIRED: Attempting to launch as Administrator...\n");
+        printf("     Please click 'Yes' on the Windows UAC elevation prompt.\n");
+        printf("====================================================================\n\n");
+    }
 
     SHELLEXECUTEINFOA sei = { sizeof(sei) };
     sei.lpVerb = "runas";
     sei.lpFile = exe_path;
     sei.lpParameters = params;
-    sei.nShow = (strstr(params, "--hidden") != NULL || strstr(params, "--daemon") != NULL) ? SW_HIDE : SW_SHOWNORMAL;
+    sei.nShow = is_hidden ? SW_HIDE : SW_SHOWNORMAL;
 
     if (ShellExecuteExA(&sei)) {
         return false; // Elevated child process launched
@@ -309,6 +318,16 @@ static bool ensure_admin_or_elevate(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
+    // Ensure working directory is the folder where kpacketshield.exe lives
+    char exe_dir[MAX_PATH_LEN];
+    if (GetModuleFileNameA(NULL, exe_dir, sizeof(exe_dir)) > 0) {
+        char *last_slash = strrchr(exe_dir, '\\');
+        if (last_slash) {
+            *last_slash = '\0';
+            SetCurrentDirectoryA(exe_dir);
+        }
+    }
+
     // If no argument provided, default to --run (console engine)
     char default_arg[] = "--run";
     char *default_argv[] = { argv[0], default_arg, NULL };

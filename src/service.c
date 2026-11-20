@@ -109,6 +109,16 @@ static void WINAPI service_main(DWORD argc, LPWSTR *argv) {
     (void)argc;
     (void)argv;
 
+    // Ensure working directory is the folder where kpacketshield.exe lives
+    char exe_dir[MAX_PATH_LEN];
+    if (GetModuleFileNameA(NULL, exe_dir, sizeof(exe_dir)) > 0) {
+        char *last_slash = strrchr(exe_dir, '\\');
+        if (last_slash) {
+            *last_slash = '\0';
+            SetCurrentDirectoryA(exe_dir);
+        }
+    }
+
     g_status_handle = RegisterServiceCtrlHandlerW(L"KPacketShieldSvc", service_ctrl_handler);
     if (!g_status_handle) return;
 
@@ -240,7 +250,7 @@ bool service_uninstall(void) {
 }
 
 bool service_start(void) {
-    SC_HANDLE scm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
+    SC_HANDLE scm = OpenSCManager(NULL, NULL, SC_MANAGER_CONNECT);
     if (!scm) return false;
 
     SC_HANDLE svc = OpenServiceA(scm, KPACKETSHIELD_SERVICE_NAME, SERVICE_START);
@@ -262,7 +272,7 @@ bool service_start(void) {
 }
 
 bool service_stop(void) {
-    SC_HANDLE scm = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
+    SC_HANDLE scm = OpenSCManager(NULL, NULL, SC_MANAGER_CONNECT);
     if (!scm) return false;
 
     SC_HANDLE svc = OpenServiceA(scm, KPACKETSHIELD_SERVICE_NAME, SERVICE_STOP);

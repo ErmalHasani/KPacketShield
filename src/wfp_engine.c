@@ -68,15 +68,7 @@ bool wfp_engine_init(bool dynamic_session) {
         return false;
     }
 
-    result = FwpmTransactionBegin0(g_engine_handle, 0);
-    if (result != ERROR_SUCCESS) {
-        LOG_ERROR("FwpmTransactionBegin0 failed: 0x%08lx (Access Denied: Administrator privileges required)", result);
-        FwpmEngineClose0(g_engine_handle);
-        g_engine_handle = NULL;
-        return false;
-    }
-
-    // Register Provider
+    // Register Provider (without transaction so existing provider won't abort)
     FWPM_PROVIDER0 provider = {0};
     provider.providerKey = KPACKETSHIELD_PROVIDER_GUID;
     provider.displayData.name = L"KPacketShield Provider";
@@ -96,14 +88,6 @@ bool wfp_engine_init(bool dynamic_session) {
     result = FwpmSubLayerAdd0(g_engine_handle, &sublayer, NULL);
     if (result != ERROR_SUCCESS && result != FWP_E_ALREADY_EXISTS) {
         LOG_WARN("FwpmSubLayerAdd0 returned 0x%08lx", result);
-    }
-
-    result = FwpmTransactionCommit0(g_engine_handle);
-    if (result != ERROR_SUCCESS) {
-        LOG_ERROR("FwpmTransactionCommit0 failed: 0x%08lx", result);
-        FwpmEngineClose0(g_engine_handle);
-        g_engine_handle = NULL;
-        return false;
     }
 
     // Subscribe to NetEvents (Drops and Blocks)

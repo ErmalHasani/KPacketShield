@@ -9,8 +9,10 @@ import (
 	"io"
 	"net"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/Microsoft/go-winio"
@@ -271,23 +273,66 @@ func (a *App) DeleteRule(ruleID uint32) (*DeleteRuleResponse, error) {
 }
 
 func (a *App) StartEngine() error {
-	cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-Command", "Start-Process 'C:\\KPacketShield\\bin\\kpacketshield.exe' -ArgumentList '--run', '--hidden' -Verb RunAs -WindowStyle Hidden")
-	return cmd.Start()
+	// If already connected, no-op
+	if a.IsEngineConnected() {
+		return nil
+	}
+
+	// 1. Try starting the background Windows Service silently without UAC
+	cmd := exec.Command("sc.exe", "start", "KPacketShieldSvc")
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+		HideWindow:    true,
+	}
+	_ = cmd.Run()
+
+	// Wait briefly to see if service pipe opened
+	for i := 0; i < 5; i++ {
+		time.Sleep(300 * time.Millisecond)
+		if a.IsEngineConnected() {
+			return nil
+		}
+	}
+
+	// 2. Fallback: launch kpacketshield directly in background with CREATE_NO_WINDOW
+	exePath := filepath.Join("C:\\KPacketShield\\bin", "kpacketshield.exe")
+	fallbackCmd := exec.Command(exePath, "--run", "--hidden")
+	fallbackCmd.Dir = "C:\\KPacketShield\\bin"
+	fallbackCmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+		HideWindow:    true,
+	}
+	return fallbackCmd.Start()
 }
 
 func (a *App) InstallService() error {
 	cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-Command", "Start-Process 'C:\\KPacketShield\\bin\\kpacketshield.exe' -ArgumentList '--install' -Verb RunAs -Wait; Start-Process 'C:\\KPacketShield\\bin\\kpacketshield.exe' -ArgumentList '--start' -Verb RunAs -Wait")
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+		HideWindow:    true,
+	}
 	return cmd.Run()
 }
 
 func (a *App) UninstallService() error {
 	cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "-Command", "Start-Process 'C:\\KPacketShield\\bin\\kpacketshield.exe' -ArgumentList '--stop' -Verb RunAs -Wait; Start-Process 'C:\\KPacketShield\\bin\\kpacketshield.exe' -ArgumentList '--uninstall' -Verb RunAs -Wait")
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+		HideWindow:    true,
+	}
 	return cmd.Run()
 }
 
 func (a *App) StopEngine() error {
-	_, err := a.sendCommand("STOP")
-	return err
+	_, _ = a.sendCommand("STOP")
+
+	cmd := exec.Command("sc.exe", "stop", "KPacketShieldSvc")
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+		HideWindow:    true,
+	}
+	_ = cmd.Run()
+	return nil
 }
 
 func (a *App) IsEngineConnected() bool {
