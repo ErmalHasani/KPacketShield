@@ -1,0 +1,33 @@
+# Binaries and build outputs
+bin/
+*.exe
+*.dll
+*.sys
+*.o
+*.obj
+*.tmp
+*.log
+
+# Allow WinDivert SDK dependencies
+!deps/windivert/bin/WinDivert.dll
+!deps/windivert/bin/WinDivert64.sys
+
+# Runtime configurations and data
+kpacketshield_rules.conf
+*.conf.bak
+
+# Node dependencies and build caches
+node_modules/
+.vite-temp/
+gui/frontend/node_modules/
+gui/build/bin/
+
+# Local editor and IDE configurations
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS specific files
+Thumbs.db
+Desktop.ini
